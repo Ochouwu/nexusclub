@@ -1,13 +1,13 @@
 [
   {
-    "origin": [
-      "http://localhost:3000",
-      "https://nexus-club-ten.vercel.app"
-    ],
+    "origin": ["https://nexus-card-94728.web.app"],
     "method": ["GET"],
-    "maxAgeSeconds": 3600,
-    "responseHeader": ["Content-Type"]
+    "responseHeader": ["Content-Type"],
+    "maxAgeSeconds": 3600
   }
 ]
+
+
+
 
 

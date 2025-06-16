@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "nexus-card-94728"
-  }
+    "default": "nexus-card-94728",
+    "prod": "nexus-card-94728"
+  },
+  "targets": {},
+  "etags": {}
 }

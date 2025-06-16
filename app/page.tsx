@@ -1,42 +1,17 @@
 'use client';
-import { useEffect, useRef, useState, Suspense } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './style.css';
-import { getStorage, ref, getDownloadURL } from 'firebase/storage';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import { useSearchParams } from 'next/navigation';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
-const firebaseConfig = {
-  apiKey: 'AIzaSyDgie1UTf1qd2ji28on7srL4m-Rvu2h34c',
-  authDomain: 'nexus-card-94728.firebaseapp.com',
-  projectId: 'nexus-card-94728',
-  storageBucket: 'nexus-card-94728.appspot.com',
-  messagingSenderId: '710725249036',
-  appId: '1:710725249036:web:96bd5a7d44cae7e546e629',
-  measurementId: 'G-H8TKF916CJ',
-};
-
-const app = initializeApp(firebaseConfig);
-const storage = getStorage(app);
-const db = getFirestore(app);
-
-function CarnetContent() {
-  const searchParams = useSearchParams();
-  const idFromURL = searchParams.get('id') || '';
-
+export default function Home() {
   const [mostrarIntro, setMostrarIntro] = useState(false);
   const [mostrarLogin, setMostrarLogin] = useState(false);
   const [mostrarCarnet, setMostrarCarnet] = useState(false);
-  const [urls, setUrls] = useState<any>({});
-  const [id, setId] = useState(idFromURL);
+  const [imagenes, setImagenes] = useState<any>(null);
+  const [id, setId] = useState('');
+  const [datos, setDatos] = useState<any>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-
-  const [examenA, setExamenA] = useState(0);
-  const [examenB, setExamenB] = useState(0);
-  const [hb, setHB] = useState('');
-  const [caducidad, setCaducidad] = useState('');
-  const [categoria, setCategoria] = useState('');
-  const notaFinal = Math.round((examenA + examenB) / 2);
 
   const manejarInicio = () => setMostrarIntro(true);
 
@@ -50,80 +25,78 @@ function CarnetContent() {
     }
   }, [mostrarIntro]);
 
-  useEffect(() => {
-    if (idFromURL) {
-      manejarVerCarnet();
-    }
-  }, [idFromURL]);
-
-  const obtenerDatosUsuario = async (userId: string) => {
-    try {
-      const docRef = doc(db, 'usuarios', userId);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setExamenA(data.examenA || 0);
-        setExamenB(data.examenB || 0);
-        setHB(data.hb || '');
-        setCaducidad(data.caducidad || '');
-        setCategoria(data.categoria || '');
-      } else {
-        console.warn('❌ Documento no encontrado');
-      }
-    } catch (error) {
-      console.error('⚠️ Error al obtener datos:', error);
-    }
-  };
-
   const manejarVerCarnet = async () => {
-    const userId = idFromURL || id;
-    if (userId.trim() === '') return;
+    if (id.trim() === '') return;
 
-    await obtenerDatosUsuario(userId);
+    const basePath = `/usuarios/${id}`;
 
-    const files = [
-      'carnetoff.png',
-      'ceo.png',
-      'insigniasl.png',
-      'insigniasr.png',
-      'examen_a.pdf',
-      'examen_b.pdf',
-    ];
+    setImagenes({
+      carnet: `${basePath}/carnetoff.png`,
+      ceo: `${basePath}/ceo.png`,
+      insigniasl: `${basePath}/insigniasl.png`,
+      insigniasr: `${basePath}/insigniasr.png`,
+    });
 
-    const fetchedUrls: any = {};
-
-    await Promise.all(
-      files.map(async (file) => {
-        const path = `usuarios/${userId}/${file}`;
-        try {
-          const fileRef = ref(storage, path);
-          const url = await getDownloadURL(fileRef);
-          fetchedUrls[file] = url;
-        } catch {
-          fetchedUrls[file] = '';
-        }
-      })
-    );
-
-    setUrls(fetchedUrls);
-    setMostrarLogin(false);
-    setMostrarCarnet(true);
-  };
-
-  const descargarArchivo = (url: string, nombreArchivo: string) => {
-    if (!url) {
-      console.warn('⚠️ Archivo no disponible:', nombreArchivo);
-      return;
+    try {
+      const res = await fetch(`${basePath}/datos.json`);
+      const json = await res.json();
+      setDatos(json);
+      setMostrarLogin(false);
+      setMostrarCarnet(true);
+    } catch (err) {
+      alert('❌ No se encontraron los datos del usuario');
     }
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', nombreArchivo);
-    link.setAttribute('target', '_blank');
-    link.setAttribute('rel', 'noopener noreferrer');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
+
+const descargarCarnetImagen = () => {
+  const link = document.createElement('a');
+  link.href = `/usuarios/${id}/carnetoff.png`;
+  link.download = 'carnet.png';
+  link.click();
+};
+
+const descargarCarnetPDF = () => {
+  const img = new Image();
+  img.src = `/usuarios/${id}/carnetoff.png`;
+
+  img.onload = () => {
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+
+    // Ajustar al alto disponible
+    const imgHeight = pageHeight;
+    const imgWidth = (img.width * imgHeight) / img.height;
+
+    const x = (pageWidth - imgWidth) / 2;
+
+    pdf.addImage(img, 'PNG', x, 0, imgWidth, imgHeight);
+    pdf.save('carnet.pdf');
+  };
+};
+
+
+
+  const descargarExamen = (tipo: 'a' | 'b') => {
+    const fileUrl = `/usuarios/${id}/examen_${tipo}.pdf`;
+    const link = document.createElement('a');
+    link.href = fileUrl;
+    link.download = `examen_${tipo}.pdf`;
+    link.click();
+
+    const tooltip = document.getElementById(`tooltip-${tipo}`);
+    if (tooltip) {
+      tooltip.classList.add('visible');
+      setTimeout(() => tooltip.classList.remove('visible'), 2000);
+    }
+  };
+
+  const notaA = datos?.notaA || 0;
+  const notaB = datos?.notaB || 0;
+  const notaFinal = Math.round((notaA + notaB) / 2);
+  const caducidad = datos?.caducidad || 'Desconocida';
+  const hb = datos?.hb || 'Desconocida';
+  const categoria = datos?.categoria || 'N/A';
 
   return (
     <main className="main-container">
@@ -170,22 +143,16 @@ function CarnetContent() {
         </div>
       )}
 
-      {mostrarCarnet && (
+      {mostrarCarnet && imagenes && datos && (
         <>
           <div className="carnet-container fade-in-up">
             <div className="carnet-left">
-              <img src={urls['carnetoff.png']} alt="Carnet" className="carnet-img" />
+              <img src={imagenes.carnet} alt="Carnet" className="carnet-img" />
               <div className="button-group">
-                <button
-                  className="glass-button download-button"
-                  onClick={() => descargarArchivo(urls['carnetoff.png'], 'carnet.png')}
-                >
+                <button className="glass-button download-button" onClick={descargarCarnetImagen}>
                   Descargar Imagen
                 </button>
-                <button
-                  className="glass-button download-button"
-                  onClick={() => descargarArchivo(urls['carnetoff.png'], 'carnet.pdf')}
-                >
+                <button className="glass-button download-button" onClick={descargarCarnetPDF}>
                   Descargar PDF
                 </button>
               </div>
@@ -196,24 +163,18 @@ function CarnetContent() {
 
               <div className="exam-row">
                 <span>Examen A</span>
-                <div
-                  className="glass-grade green hover-scale"
-                  onClick={() => descargarArchivo(urls['examen_a.pdf'], 'examen_a.pdf')}
-                  style={{ cursor: 'pointer' }}
-                >
-                  {examenA}
+                <div className="glass-grade green hover-scale" onClick={() => descargarExamen('a')} style={{ cursor: 'pointer' }}>
+                  {notaA}
                 </div>
+                <span id="tooltip-a" className="glass-tooltip">📄 Examen A descargado</span>
               </div>
 
               <div className="exam-row">
                 <span>Examen B</span>
-                <div
-                  className="glass-grade green hover-scale"
-                  onClick={() => descargarArchivo(urls['examen_b.pdf'], 'examen_b.pdf')}
-                  style={{ cursor: 'pointer' }}
-                >
-                  {examenB}
+                <div className="glass-grade green hover-scale" onClick={() => descargarExamen('b')} style={{ cursor: 'pointer' }}>
+                  {notaB}
                 </div>
+                <span id="tooltip-b" className="glass-tooltip">📄 Examen B descargado</span>
               </div>
 
               <div className="exam-row">
@@ -227,9 +188,11 @@ function CarnetContent() {
                   Activo <div className="pulsating-circle inside"></div>
                 </div>
               </div>
+
               <div className="contract-status">
                 <div className="glass-contract red">Caducidad: {caducidad}</div>
               </div>
+
               <div className="contract-status">
                 <div className="glass-contract yellow">
                   <span style={{ color: '#FFFFFF', fontWeight: 'bold' }}>HB: {hb}</span>
@@ -238,15 +201,15 @@ function CarnetContent() {
 
               <h3 className="section-subtitle">Categoría</h3>
               <div className="glass-category center-content">
-                <img src={urls['ceo.png']} alt="CEO" className="ceo-img" />
+                <img src={imagenes.ceo} alt="CEO" className="ceo-img" />
                 <strong>{categoria}</strong>
               </div>
             </div>
           </div>
 
           <div className="dual-insignias-container">
-            <img src={urls['insigniasl.png']} alt="Izquierda" className="dual-insignias-img" />
-            <img src={urls['insigniasr.png']} alt="Derecha" className="dual-insignias-img" />
+            <img src={imagenes.insigniasl} alt="Insignias Izquierda" className="dual-insignias-img" />
+            <img src={imagenes.insigniasr} alt="Insignias Derecha" className="dual-insignias-img" />
           </div>
         </>
       )}
@@ -258,13 +221,22 @@ function CarnetContent() {
   );
 }
 
-export default function Page() {
-  return (
-    <Suspense fallback={<div className="loading-text">Cargando carnet...</div>}>
-      <CarnetContent />
-    </Suspense>
-  );
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -347,10 +347,10 @@
 }
 
 /* 🚫 Eliminar scroll horizontal global */
-body, html {
-  overflow-x: hidden !important;
-  max-width: 100vw;
+body {
+  font-family: var(--font-inter), sans-serif;
 }
+
 
 /* ✅ Insignias: más pequeñas, sin causar desborde */
 .dual-insignias-container {

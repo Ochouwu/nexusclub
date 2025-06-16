@@ -8,7 +8,7 @@ const firebaseConfig = {
   apiKey: 'AIzaSyDgie1UTf1qd2ji28on7srL4m-Rvu2h34c',
   authDomain: 'nexus-card-94728.firebaseapp.com',
   projectId: 'nexus-card-94728',
-  storageBucket: 'nexus-card-94728.appspot.com', // ✅ ¡DEBE SER appspot.com!
+  storageBucket: 'nexus-card-94728.appspot.com', // ✅ CORREGIDO
   messagingSenderId: '710725249036',
   appId: '1:710725249036:web:96bd5a7d44cae7e546e629',
   measurementId: 'G-H8TKF916CJ'
@@ -18,7 +18,6 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-// ✅ Obtener archivos por ID de usuario
 export const getUserFiles = async (userId: string) => {
   const fileNames = [
     'carnetoff.png',
@@ -44,7 +43,6 @@ export const getUserFiles = async (userId: string) => {
 
   return files;
 };
-
 
 
 
