@@ -1,7 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import './style.css';
-import jsPDF from 'jspdf';
 import { doc, getDoc } from 'firebase/firestore';
 import { db, getUserFiles } from './firebase/firebase';
 
@@ -94,7 +93,8 @@ export default function Home() {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.src = urls['carnetoff.png'] || '';
-    img.onload = () => {
+    img.onload = async () => {
+      const { default: jsPDF } = await import('jspdf');
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
@@ -252,6 +252,7 @@ export default function Home() {
     </main>
   );
 }
+
 
 
 
