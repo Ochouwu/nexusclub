@@ -1,11 +1,17 @@
-'use client'
-import { useSearchParams } from 'next/navigation'
-import Image from 'next/image'
-import '../style.css'
+'use client';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import Image from 'next/image';
+import '../style.css';
 
-export default function CarnetPage() {
-  const searchParams = useSearchParams()
-  const id = searchParams.get('id') || 'SIN-ID'
+function CarnetClient() {
+  const searchParams = useSearchParams();
+  const [id, setId] = useState('SIN-ID');
+
+  useEffect(() => {
+    const paramId = searchParams.get('id');
+    if (paramId) setId(paramId);
+  }, [searchParams]);
 
   return (
     <main className="main-container">
@@ -25,7 +31,19 @@ export default function CarnetPage() {
         <p className="id-display">ID: {id}</p>
       </div>
     </main>
-  )
+  );
 }
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div>Cargando...</div>}>
+      <CarnetClient />
+    </Suspense>
+  );
+}
+
+
+
+
 
 

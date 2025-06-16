@@ -1,149 +1,257 @@
 'use client';
-import { useEffect, useRef, useState, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import { useEffect, useRef, useState } from 'react';
 import './style.css';
+import { doc, getDoc } from 'firebase/firestore';
+import { db, getUserFiles } from './firebase/firebase';
 
-function CarnetContent() {
+type DatosUsuario = {
+  examenA: number;
+  examenB: number;
+  categoria: string;
+  caducidad: string;
+  hb: string;
+};
+
+export default function Home() {
+  const [mostrarIntro, setMostrarIntro] = useState(false);
+  const [mostrarLogin, setMostrarLogin] = useState(false);
   const [mostrarCarnet, setMostrarCarnet] = useState(false);
-  const searchParams = useSearchParams();
-  const id = searchParams.get('id');
-  const carnetRef = useRef<HTMLDivElement>(null);
+  const [id, setId] = useState('');
+  const [datos, setDatos] = useState<DatosUsuario | null>(null);
+  const [urls, setUrls] = useState<{ [key: string]: string }>({});
 
-  const handleVerCarnet = () => {
-    if (id) {
-      localStorage.setItem('mostrarCarnet', 'true');
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const manejarInicio = () => setMostrarIntro(true);
+
+  useEffect(() => {
+    if (mostrarIntro && videoRef.current) {
+      videoRef.current.play();
+      videoRef.current.onended = () => {
+        setMostrarIntro(false);
+        setMostrarLogin(true);
+      };
+    }
+  }, [mostrarIntro]);
+
+  const manejarVerCarnet = () => {
+    if (id.trim() !== '') {
+      setMostrarLogin(false);
       setMostrarCarnet(true);
     }
   };
 
   useEffect(() => {
-    const mostrar = localStorage.getItem('mostrarCarnet');
-    if (mostrar === 'true') {
-      setMostrarCarnet(true);
-    }
-  }, []);
+    const fetchDatos = async () => {
+      if (!id) return;
+      try {
+        const ref = doc(db, 'usuarios', id);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          setDatos(snap.data() as DatosUsuario);
+          const urlsObtenidas = await getUserFiles(id);
+          setUrls(urlsObtenidas);
+        } else {
+          alert('ID no encontrado.');
+          setMostrarCarnet(false);
+          setMostrarLogin(true);
+        }
+      } catch (err) {
+        console.error('Error obteniendo datos:', err);
+      }
+    };
 
-  const descargarImagen = () => {
-    if (!carnetRef.current) return;
-    html2canvas(carnetRef.current).then((canvas) => {
-      const link = document.createElement('a');
-      link.download = 'mi-carnet.png';
-      link.href = canvas.toDataURL();
-      link.click();
-    });
+    if (mostrarCarnet) fetchDatos();
+  }, [mostrarCarnet, id]); // ✅ id agregado como dependencia
+
+  const notaA = datos?.examenA || 0;
+  const notaB = datos?.examenB || 0;
+  const notaFinal = Math.round((notaA + notaB) / 2);
+
+  const descargarArchivo = async (url: string, nombre: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const enlace = document.createElement('a');
+      enlace.href = URL.createObjectURL(blob);
+      enlace.download = nombre;
+      document.body.appendChild(enlace);
+      enlace.click();
+      document.body.removeChild(enlace);
+      URL.revokeObjectURL(enlace.href);
+    } catch (error) {
+      console.error('Error al descargar:', error);
+      alert('No se pudo descargar el archivo.');
+    }
   };
 
-  const descargarPDF = () => {
-    if (!carnetRef.current) return;
-    html2canvas(carnetRef.current).then((canvas) => {
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('landscape', 'mm', 'a4');
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save('mi-carnet.pdf');
-    });
+  const descargarCarnetImagen = () => {
+    descargarArchivo(urls['carnetoff.png'] || '', 'carnet_hd.png');
+  };
+
+  const descargarCarnetPDF = () => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = urls['carnetoff.png'] || '';
+    img.onload = async () => {
+      const { default: jsPDF } = await import('jspdf');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = img.width;
+      const imgHeight = img.height;
+      let scaledWidth = pageWidth;
+      let scaledHeight = (imgHeight * scaledWidth) / imgWidth;
+      if (scaledHeight > pageHeight) {
+        scaledHeight = pageHeight;
+        scaledWidth = (imgWidth * scaledHeight) / imgHeight;
+      }
+      const x = (pageWidth - scaledWidth) / 2;
+      const y = (pageHeight - scaledHeight) / 2;
+      pdf.addImage(img, 'PNG', x, y, scaledWidth, scaledHeight);
+      pdf.save('carnet.pdf');
+    };
+  };
+
+  const descargarExamen = (tipo: 'a' | 'b') => {
+    const fileKey = tipo === 'a' ? 'examen_a.pdf' : 'examen_b.pdf';
+    descargarArchivo(urls[fileKey] || '', fileKey);
+
+    const tooltip = document.getElementById(`tooltip-${tipo}`);
+    if (tooltip) {
+      tooltip.classList.add('visible');
+      setTimeout(() => tooltip.classList.remove('visible'), 2000);
+    }
   };
 
   return (
-    <div className="main-container">
-      <video autoPlay muted loop className="background-video">
-        <source src="/video-fondo.mp4" type="video/mp4" />
+    <main className="main-container">
+      <video autoPlay loop muted className="background-video">
+        <source src="/background.mp4" type="video/mp4" />
+        Tu navegador no soporta video HTML5.
       </video>
-      {!mostrarCarnet && (
-        <div className="login-container">
-          <h1 className="glass-button">🎮 Iniciar Sesión</h1>
-          <input type="text" placeholder="Ingresa tu ID" className="input-login" />
-          <button onClick={handleVerCarnet} className="glass-button">
+
+      {!mostrarIntro && !mostrarLogin && !mostrarCarnet && (
+        <button className="intro-button" onClick={manejarInicio}>
+          <img src="/logo.png" alt="Logo" className="logo" />
+        </button>
+      )}
+
+      {mostrarIntro && (
+        <div className="intro-video-container fade-out">
+          <video
+            ref={videoRef}
+            className="intro-video"
+            src="/intro.mp4"
+            muted={false}
+            playsInline
+            controls={false}
+          />
+        </div>
+      )}
+
+      {mostrarLogin && (
+        <div className="login-container fade-in-up">
+          <div className="login-header">
+            <img src="/logo.png" alt="Logo" className="logo" />
+            <h1 className="login-title">Login</h1>
+          </div>
+          <input
+            className="input-id"
+            type="text"
+            placeholder="Ingresa tu ID"
+            value={id}
+            onChange={(e) => setId(e.target.value)}
+          />
+          <button className="glass-button" onClick={manejarVerCarnet}>
             Ver carnet
           </button>
         </div>
       )}
-      {mostrarCarnet && (
-        <div className="carnet-container">
-          <div className="left-panel">
-            <h2 className="title">🪪 Carnet Oficial</h2>
-            <div className="carnet-image" ref={carnetRef}>
-              <img src="/carnet.png" alt="Carnet del usuario" />
-            </div>
-            <div className="botones-carnet">
-              <button className="glass-button" onClick={descargarImagen}>
-                Descargar imagen
-              </button>
-              <button className="glass-button" onClick={descargarPDF}>
-                Descargar PDF
-              </button>
-            </div>
-            <div className="evaluaciones">
-              <h3>Evaluaciones:</h3>
-              <div className="notas">
-                <button className="nota-button">A: 18</button>
-                <button className="nota-button">B: 17</button>
-              </div>
-              <button className="nota-final" title="Promedio A y B. Desde 11 aprueba.">
-                Nota Final: 17.5
-              </button>
-            </div>
-          </div>
-          <div className="right-panel">
-            <h2 className="title grande">Resumen del Usuario</h2>
-            <div className="info-usuario">
-              <p><strong>Nombre:</strong> Renato V.</p>
-              <p>
-                <strong>Categoría:</strong>{' '}
-                <button className="glass-blue" title="Usuario nuevo del club">A0</button>
-              </p>
-              <p>
-                <strong>Contrato:</strong>{' '}
-                <button className="glass-green" title="Caduca en diciembre">
-                  Activo <span className="pulsante"></span>
+
+      {mostrarCarnet && datos && (
+        <>
+          <div className="carnet-container fade-in-up">
+            <div className="carnet-left">
+              {urls['carnetoff.png'] && (
+                <img src={urls['carnetoff.png']} className="carnet-img" />
+              )}
+
+              <div className="button-group">
+                <button className="glass-button download-button" onClick={descargarCarnetImagen}>
+                  Descargar Imagen
                 </button>
-              </p>
-            </div>
-            <h3 className="ciclos-titulo">Ciclos Nexus</h3>
-            <div className="ciclos-container">
-              <div className="insignia">
-                <img src="/ciclo1.png" alt="Ciclo 1" />
-                <p>Inicio (2022)</p>
-              </div>
-              <div className="insignia">
-                <img src="/ciclo2.png" alt="Ciclo 2" />
-                <p>Exploración (2023)</p>
-              </div>
-              <div className="insignia">
-                <img src="/ciclo3.png" alt="Ciclo 3" />
-                <p>Expansión (2024)</p>
-              </div>
-              <div className="insignia">
-                <img src="/ciclo4.png" alt="Ciclo 4" />
-                <p>Dominio (2025)</p>
+                <button className="glass-button download-button" onClick={descargarCarnetPDF}>
+                  Descargar PDF
+                </button>
               </div>
             </div>
-            <h3>Videojuegos Favoritos</h3>
-            <div className="juegos">
-              <img src="/zelda.png" alt="Zelda" />
-              <img src="/pokemon.png" alt="Pokemon" />
-              <img src="/mario.png" alt="Mario" />
+
+            <div className="carnet-right glass-panel">
+              <h2 className="section-title">Resumen del Usuario</h2>
+
+              <div className="exam-row">
+                <span>Examen A</span>
+                <div className="glass-grade blue hover-scale" onClick={() => descargarExamen('a')} style={{ cursor: 'pointer' }}>
+                  {notaA}
+                </div>
+                <span id="tooltip-a" className="glass-tooltip">📄 Examen A descargado</span>
+              </div>
+
+              <div className="exam-row">
+                <span>Examen B</span>
+                <div className="glass-grade blue hover-scale" onClick={() => descargarExamen('b')} style={{ cursor: 'pointer' }}>
+                  {notaB}
+                </div>
+                <span id="tooltip-b" className="glass-tooltip">📄 Examen B descargado</span>
+              </div>
+
+              <div className="exam-row">
+                <span>Nota Final</span>
+                <div className="glass-grade green hover-scale" style={{ cursor: 'pointer' }}>
+                  {notaFinal}
+                </div>
+              </div>
+
+              <h3 className="section-subtitle">Contrato</h3>
+              <div className="contract-status">
+                <div className="glass-grade green with-circle" style={{ cursor: 'pointer' }}>
+                  <span>Activo</span>
+                  <div className="pulsating-circle inside"></div>
+                </div>
+              </div>
+              <div className="contract-status">
+                <div className="glass-contract red">
+                  Caducidad: {datos?.caducidad}
+                </div>
+              </div>
+              <div className="contract-status">
+                <div className="glass-contract yellow">
+                  <span style={{ color: '#FFFFFF', fontWeight: 'bold' }}>HB: {datos?.hb}</span>
+                </div>
+              </div>
+
+              <h3 className="section-subtitle">Categoría</h3>
+              <div className="glass-category center-content">
+                <img src={urls['ceo.png'] || ''} alt={datos?.categoria || 'Categoría'} className="ceo-img" />
+                <strong>{datos?.categoria}</strong>
+              </div>
             </div>
-            <p className="footer">© Nexus / Creator: Ocho - Renato V. 2025</p>
           </div>
-        </div>
+
+          <div className="dual-insignias-container">
+            <img src={urls['insigniasl.png'] || ''} alt="Insignias Izquierda" className="dual-insignias-img" />
+            <img src={urls['insigniasr.png'] || ''} alt="Insignias Derecha" className="dual-insignias-img" />
+          </div>
+        </>
       )}
-    </div>
+
+      <footer className="copyright-footer">
+        © Nexus / Creator: Ocho - Renato V. 2025
+      </footer>
+    </main>
   );
 }
-
-export default function Home() {
-  return (
-    <Suspense fallback={<div>Cargando carnet...</div>}>
-      <CarnetContent />
-    </Suspense>
-  );
-}
-
 
 
 
