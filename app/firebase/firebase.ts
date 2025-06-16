@@ -8,18 +8,17 @@ const firebaseConfig = {
   apiKey: 'AIzaSyDgie1UTf1qd2ji28on7srL4m-Rvu2h34c',
   authDomain: 'nexus-card-94728.firebaseapp.com',
   projectId: 'nexus-card-94728',
-  storageBucket: 'nexus-card-94728.firebasestorage.app', // ✅ Bucket corregido
+  storageBucket: 'nexus-card-94728.appspot.com', // ✅ ¡DEBE SER appspot.com!
   messagingSenderId: '710725249036',
   appId: '1:710725249036:web:96bd5a7d44cae7e546e629',
   measurementId: 'G-H8TKF916CJ'
 };
 
-// Inicializar Firebase (solo una vez)
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-// 🔄 Obtener archivos del usuario desde Firebase Storage
+// ✅ Obtener archivos por ID de usuario
 export const getUserFiles = async (userId: string) => {
   const fileNames = [
     'carnetoff.png',
@@ -39,12 +38,14 @@ export const getUserFiles = async (userId: string) => {
       files[name] = url;
     } catch (error) {
       console.error(`❌ Error obteniendo ${name}:`, error);
-      files[name] = ''; // Si no existe el archivo
+      files[name] = '';
     }
   }
 
   return files;
 };
+
+
 
 
 

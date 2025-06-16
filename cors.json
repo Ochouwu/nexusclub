@@ -1,9 +1,13 @@
 [
   {
-    "origin": ["http://localhost:3000"],
+    "origin": [
+      "http://localhost:3000",
+      "https://nexus-club-ten.vercel.app"
+    ],
     "method": ["GET"],
-    "responseHeader": ["Content-Type"],
-    "maxAgeSeconds": 3600
+    "maxAgeSeconds": 3600,
+    "responseHeader": ["Content-Type"]
   }
 ]
+
 
