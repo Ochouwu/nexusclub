@@ -17,6 +17,7 @@ function CarnetClient() {
     <main className="main-container">
       <video autoPlay loop muted className="background-video">
         <source src="/background.mp4" type="video/mp4" />
+        Tu navegador no soporta video HTML5.
       </video>
 
       <div className="content fade-in">
@@ -36,11 +37,12 @@ function CarnetClient() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<div>Cargando...</div>}>
+    <Suspense fallback={<div className="fallback">Cargando...</div>}>
       <CarnetClient />
     </Suspense>
   );
 }
+
 
 
 
